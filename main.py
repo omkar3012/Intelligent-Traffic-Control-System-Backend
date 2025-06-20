@@ -29,9 +29,13 @@ app.add_middleware(
 # --- Vehicle Detection ---
 # Load the pre-trained Haar Cascade model for car detection
 car_cascade = cv2.CascadeClassifier()
-cascade_path = os.path.join(os.path.dirname(__file__), 'haarcascade_cars.xml')
-if not car_cascade.load(cascade_path):
-    print("--- Error: Failed to load car cascade classifier ---")
+# Construct an absolute path to the cascade file to avoid pathing issues in different environments.
+cascade_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'haarcascade_cars.xml'))
+
+if not os.path.exists(cascade_path):
+    print(f"--- Error: Cascade file not found at {cascade_path} ---")
+elif not car_cascade.load(cascade_path):
+    print(f"--- Error: Failed to load car cascade classifier from {cascade_path} ---")
     # You might want to handle this more gracefully, e.g., by raising an exception
     # that gets caught by a startup event handler in a real application.
 
