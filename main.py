@@ -29,7 +29,7 @@ app.add_middleware(
 
 # --- Vehicle Detection Setup ---
 
-CASCADE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_car.xml"
+CASCADE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_cars.xml"
 CASCADE_FILE_NAME = "haarcascade_cars.xml"
 
 def download_cascade_file():
