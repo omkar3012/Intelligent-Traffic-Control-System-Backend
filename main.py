@@ -6,6 +6,8 @@ import numpy as np
 import json
 import os
 import traceback
+from ultralytics import YOLO
+import torch
 
 app = FastAPI()
 
@@ -28,255 +30,42 @@ app.add_middleware(
 
 # --- Vehicle Detection Setup ---
 
-CASCADE_FILE_NAME = "haarcascade_cars.xml"
+# Load the YOLOv8 model
+# 'yolov8n.pt' is a small and fast model, suitable for CPU execution.
+try:
+    model = YOLO('yolov8n.pt')
+    print("--- YOLOv8 model loaded successfully. ---")
+except Exception as e:
+    raise RuntimeError(f"--- Fatal: Failed to load YOLOv8 model. Details: {e} ---")
 
-# The entire Haar Cascade XML content is embedded here to avoid file corruption and download issues.
-CASCADE_XML_CONTENT = """<?xml version="1.0"?>
-<opencv_storage>
-<cars3 type_id="opencv-haar-classifier">
-  <size>
-    20 20</size>
-  <stages>
-    <_>
-      <!-- stage 0 -->
-      <trees>
-        <_>
-          <!-- tree 0 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  6 12 8 8 -1.</_>
-                <_>
-                  6 16 8 4 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.0452074706554413</threshold>
-            <left_val>-0.7191650867462158</left_val>
-            <right_val>0.7359663248062134</right_val></_></_>
-        <_>
-          <!-- tree 1 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  1 12 18 1 -1.</_>
-                <_>
-                  7 12 6 1 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-0.0161712504923344</threshold>
-            <left_val>0.5866637229919434</left_val>
-            <right_val>-0.5909150242805481</right_val></_></_>
-        <_>
-          <!-- tree 2 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  7 18 5 2 -1.</_>
-                <_>
-                  7 19 5 1 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.0119725503027439</threshold>
-            <left_val>-0.3645753860473633</left_val>
-            <right_val>0.8175076246261597</right_val></_></_>
-        <_>
-          <!-- tree 3 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  5 12 11 4 -1.</_>
-                <_>
-                  5 14 11 2 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.0554178208112717</threshold>
-            <left_val>-0.5766019225120544</left_val>
-            <right_val>0.8059020042419434</right_val></_></_></trees>
-      <stage_threshold>-1.0691740512847900</stage_threshold>
-      <parent>-1</parent>
-      <next>-1</next></_>
-    <_>
-      <!-- stage 1 -->
-      <trees>
-        <_>
-          <!-- tree 0 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  1 12 18 2 -1.</_>
-                <_>
-                  7 12 6 2 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-0.0243058893829584</threshold>
-            <left_val>0.5642552971839905</left_val>
-            <right_val>-0.7375097870826721</right_val></_></_>
-        <_>
-          <!-- tree 1 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  3 1 14 6 -1.</_>
-                <_>
-                  3 3 14 2 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-0.0302439108490944</threshold>
-            <left_val>0.5537161827087402</left_val>
-            <right_val>-0.5089462995529175</right_val></_></_>
-        <_>
-          <!-- tree 2 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  4 8 12 9 -1.</_>
-                <_>
-                  4 11 12 3 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-0.1937028020620346</threshold>
-            <left_val>0.7614368200302124</left_val>
-            <right_val>-0.3485977053642273</right_val></_></_>
-        <_>
-          <!-- tree 3 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  8 18 12 2 -1.</_>
-                <_>
-                  14 18 6 1 2.</_>
-                <_>
-                  8 19 6 1 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.0120156398043036</threshold>
-            <left_val>-0.4035871028900146</left_val>
-            <right_val>0.6296288967132568</right_val></_></_>
-        <_>
-          <!-- tree 4 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  0 12 6 6 -1.</_>
-                <_>
-                  2 12 2 6 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>2.9895049519836903e-03</threshold>
-            <left_val>-0.4086846113204956</left_val>
-            <right_val>0.4285241067409515</right_val></_></_>
-        <_>
-          <!-- tree 5 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  6 11 9 8 -1.</_>
-                <_>
-                  6 15 9 4 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.1299877017736435</threshold>
-            <left_val>-0.2570166885852814</left_val>
-            <right_val>0.5929297208786011</right_val></_></_>
-        <_>
-          <!-- tree 6 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  1 6 10 2 -1.</_>
-                <_>
-                  1 6 5 1 2.</_>
-                <_>
-                  6 7 5 1 2.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-6.0164160095155239e-03</threshold>
-            <left_val>0.5601549744606018</left_val>
-            <right_val>-0.2849527895450592</right_val></_></_></trees>
-      <stage_threshold>-1.0788700580596924</stage_threshold>
-      <parent>0</parent>
-      <next>-1</next></_>
-    <_>
-      <!-- stage 2 -->
-      <trees>
-        <_>
-          <!-- tree 0 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  3 2 14 12 -1.</_>
-                <_>
-                  3 6 14 4 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>0.0943963602185249</threshold>
-            <left_val>-0.5406976938247681</left_val>
-            <right_val>0.5407304763793945</right_val></_></_>
-        <_>
-          <!-- tree 1 -->
-          <_>
-            <!-- root node -->
-            <feature>
-              <rects>
-                <_>
-                  1 12 18 2 -1.</_>
-                <_>
-                  7 12 6 2 3.</_></rects>
-              <tilted>0</tilted></feature>
-            <threshold>-0.1264353841543198</threshold>
-            <left_val>0.5983694791793823</left_val>
-            <right_val>-0.3333333432674408</right_val></_></_></trees>
-      <stage_threshold>-0.1818181872367859</stage_threshold>
-      <parent>1</parent>
-      <next>-1</next></_></stages>
-</cars3>
-</opencv_storage>
-"""
-
-def write_cascade_file():
-    """Writes the embedded XML content to a file."""
-    try:
-        with open(CASCADE_FILE_NAME, "w") as f:
-            f.write(CASCADE_XML_CONTENT)
-    except IOError as e:
-        print(f"--- Fatal: Could not write cascade file. Details: {traceback.format_exc()} ---")
-        raise RuntimeError("Could not write Haar Cascade file to disk.") from e
-
-# Create the cascade file on startup
-write_cascade_file()
-
-# Load the pre-trained Haar Cascade model from the newly created file
-car_cascade = cv2.CascadeClassifier()
-if not car_cascade.load(CASCADE_FILE_NAME):
-    raise RuntimeError(f"--- Fatal: Failed to load car cascade classifier from {CASCADE_FILE_NAME} ---")
+# Define the classes that should be considered as vehicles
+VEHICLE_CLASSES = [2, 3, 5, 7]  # In COCO dataset: 2=car, 3=motorcycle, 5=bus, 7=truck
 
 def detect_vehicles(frame):
-    """Detects vehicles in a single frame using the Haar Cascade model."""
+    """Detects vehicles in a single frame using the YOLOv8 model."""
     if frame is None:
         return 0
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    # Adjust scaleFactor and minNeighbors for detection sensitivity.
-    # scaleFactor: How much the image size is reduced at each image scale.
-    # minNeighbors: How many neighbors each candidate rectangle should have to retain it.
-    cars = car_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    return len(cars)
+    
+    # Perform inference
+    results = model(frame, verbose=False)
+    
+    vehicle_count = 0
+    # The result object contains bounding boxes, classes, and confidences
+    for box in results[0].boxes:
+        try:
+            # Check if the detected object class is in our list of vehicle classes
+            if int(box.cls) in VEHICLE_CLASSES:
+                vehicle_count += 1
+        except (ValueError, IndexError):
+            # Ignore if class ID is not a valid integer or out of bounds
+            continue
+            
+    return vehicle_count
 
 @app.post('/process-video')
 async def process_video(request: Request):
     """
-    This endpoint now accepts multipart/form-data, processes each video file,
+    This endpoint accepts multipart/form-data, processes each video file,
     and returns a JSON object with vehicle detection results for each lane.
     """
     try:
@@ -311,13 +100,15 @@ async def process_video(request: Request):
                     continue
 
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                sample_interval = 30
+                sample_interval = 30  # Process 1 frame per second for a 30fps video
                 vehicle_count_total = 0
                 frame_count = 0
+                
                 while cap.isOpened():
                     ret, frame = cap.read()
                     if not ret:
                         break
+                    
                     frame_count += 1
                     if frame_count % sample_interval == 0:
                         vehicles_in_frame = detect_vehicles(frame)
@@ -325,11 +116,12 @@ async def process_video(request: Request):
                 cap.release()
                 
                 processed_frames = frame_count // sample_interval if sample_interval > 0 else 0
+                # Use total detections instead of averaging for a cumulative count
                 average_vehicles = vehicle_count_total / max(processed_frames, 1)
 
                 results[lane_id] = {
                     "vehicle_count": vehicle_count_total,
-                    "average_vehicles": average_vehicles,
+                    "average_vehicles": round(average_vehicles, 2),
                     "processed_frames": processed_frames,
                     "total_frames": total_frames
                 }
