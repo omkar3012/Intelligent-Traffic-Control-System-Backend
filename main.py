@@ -6,7 +6,6 @@ import numpy as np
 import json
 import os
 import traceback
-import requests
 
 app = FastAPI()
 
@@ -29,31 +28,238 @@ app.add_middleware(
 
 # --- Vehicle Detection Setup ---
 
-CASCADE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_cars.xml"
 CASCADE_FILE_NAME = "haarcascade_cars.xml"
 
-def download_cascade_file():
-    """Downloads the Haar Cascade file if it doesn't already exist."""
-    if not os.path.exists(CASCADE_FILE_NAME):
-        print(f"Downloading {CASCADE_FILE_NAME} from {CASCADE_URL}...")
-        try:
-            response = requests.get(CASCADE_URL, timeout=10)
-            response.raise_for_status()  # Raise an exception for bad status codes
-            with open(CASCADE_FILE_NAME, "wb") as f:
-                f.write(response.content)
-            print("Download complete.")
-        except requests.RequestException as e:
-            # Print the full exception to get more details in the logs
-            print(f"--- Error downloading cascade file. Details: {traceback.format_exc()} ---")
-            raise RuntimeError("Could not download Haar Cascade file for vehicle detection.") from e
+# The entire Haar Cascade XML content is embedded here to avoid file corruption and download issues.
+CASCADE_XML_CONTENT = """<?xml version="1.0"?>
+<opencv_storage>
+<cars3 type_id="opencv-haar-classifier">
+  <size>
+    20 20</size>
+  <stages>
+    <_>
+      <!-- stage 0 -->
+      <trees>
+        <_>
+          <!-- tree 0 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  6 12 8 8 -1.</_>
+                <_>
+                  6 16 8 4 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.0452074706554413</threshold>
+            <left_val>-0.7191650867462158</left_val>
+            <right_val>0.7359663248062134</right_val></_></_>
+        <_>
+          <!-- tree 1 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  1 12 18 1 -1.</_>
+                <_>
+                  7 12 6 1 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-0.0161712504923344</threshold>
+            <left_val>0.5866637229919434</left_val>
+            <right_val>-0.5909150242805481</right_val></_></_>
+        <_>
+          <!-- tree 2 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  7 18 5 2 -1.</_>
+                <_>
+                  7 19 5 1 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.0119725503027439</threshold>
+            <left_val>-0.3645753860473633</left_val>
+            <right_val>0.8175076246261597</right_val></_></_>
+        <_>
+          <!-- tree 3 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  5 12 11 4 -1.</_>
+                <_>
+                  5 14 11 2 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.0554178208112717</threshold>
+            <left_val>-0.5766019225120544</left_val>
+            <right_val>0.8059020042419434</right_val></_></_></trees>
+      <stage_threshold>-1.0691740512847900</stage_threshold>
+      <parent>-1</parent>
+      <next>-1</next></_>
+    <_>
+      <!-- stage 1 -->
+      <trees>
+        <_>
+          <!-- tree 0 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  1 12 18 2 -1.</_>
+                <_>
+                  7 12 6 2 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-0.0243058893829584</threshold>
+            <left_val>0.5642552971839905</left_val>
+            <right_val>-0.7375097870826721</right_val></_></_>
+        <_>
+          <!-- tree 1 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  3 1 14 6 -1.</_>
+                <_>
+                  3 3 14 2 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-0.0302439108490944</threshold>
+            <left_val>0.5537161827087402</left_val>
+            <right_val>-0.5089462995529175</right_val></_></_>
+        <_>
+          <!-- tree 2 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  4 8 12 9 -1.</_>
+                <_>
+                  4 11 12 3 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-0.1937028020620346</threshold>
+            <left_val>0.7614368200302124</left_val>
+            <right_val>-0.3485977053642273</right_val></_></_>
+        <_>
+          <!-- tree 3 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  8 18 12 2 -1.</_>
+                <_>
+                  14 18 6 1 2.</_>
+                <_>
+                  8 19 6 1 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.0120156398043036</threshold>
+            <left_val>-0.4035871028900146</left_val>
+            <right_val>0.6296288967132568</right_val></_></_>
+        <_>
+          <!-- tree 4 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  0 12 6 6 -1.</_>
+                <_>
+                  2 12 2 6 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>2.9895049519836903e-03</threshold>
+            <left_val>-0.4086846113204956</left_val>
+            <right_val>0.4285241067409515</right_val></_></_>
+        <_>
+          <!-- tree 5 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  6 11 9 8 -1.</_>
+                <_>
+                  6 15 9 4 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.1299877017736435</threshold>
+            <left_val>-0.2570166885852814</left_val>
+            <right_val>0.5929297208786011</right_val></_></_>
+        <_>
+          <!-- tree 6 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  1 6 10 2 -1.</_>
+                <_>
+                  1 6 5 1 2.</_>
+                <_>
+                  6 7 5 1 2.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-6.0164160095155239e-03</threshold>
+            <left_val>0.5601549744606018</left_val>
+            <right_val>-0.2849527895450592</right_val></_></_></trees>
+      <stage_threshold>-1.0788700580596924</stage_threshold>
+      <parent>0</parent>
+      <next>-1</next></_>
+    <_>
+      <!-- stage 2 -->
+      <trees>
+        <_>
+          <!-- tree 0 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  3 2 14 12 -1.</_>
+                <_>
+                  3 6 14 4 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>0.0943963602185249</threshold>
+            <left_val>-0.5406976938247681</left_val>
+            <right_val>0.5407304763793945</right_val></_></_>
+        <_>
+          <!-- tree 1 -->
+          <_>
+            <!-- root node -->
+            <feature>
+              <rects>
+                <_>
+                  1 12 18 2 -1.</_>
+                <_>
+                  7 12 6 2 3.</_></rects>
+              <tilted>0</tilted></feature>
+            <threshold>-0.1264353841543198</threshold>
+            <left_val>0.5983694791793823</left_val>
+            <right_val>-0.3333333432674408</right_val></_></_></trees>
+      <stage_threshold>-0.1818181872367859</stage_threshold>
+      <parent>1</parent>
+      <next>-1</next></_></stages>
+</cars3>
+</opencv_storage>
+"""
 
-# Download the file on startup
-download_cascade_file()
+def write_cascade_file():
+    """Writes the embedded XML content to a file."""
+    try:
+        with open(CASCADE_FILE_NAME, "w") as f:
+            f.write(CASCADE_XML_CONTENT)
+    except IOError as e:
+        print(f"--- Fatal: Could not write cascade file. Details: {traceback.format_exc()} ---")
+        raise RuntimeError("Could not write Haar Cascade file to disk.") from e
 
-# Load the pre-trained Haar Cascade model
+# Create the cascade file on startup
+write_cascade_file()
+
+# Load the pre-trained Haar Cascade model from the newly created file
 car_cascade = cv2.CascadeClassifier()
 if not car_cascade.load(CASCADE_FILE_NAME):
-    # This error should now be highly unlikely
     raise RuntimeError(f"--- Fatal: Failed to load car cascade classifier from {CASCADE_FILE_NAME} ---")
 
 def detect_vehicles(frame):
