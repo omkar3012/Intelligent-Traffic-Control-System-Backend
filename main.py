@@ -26,6 +26,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Vehicle Detection ---
+# Load the pre-trained Haar Cascade model for car detection
+car_cascade = cv2.CascadeClassifier()
+cascade_path = os.path.join(os.path.dirname(__file__), 'haarcascade_cars.xml')
+if not car_cascade.load(cascade_path):
+    print("--- Error: Failed to load car cascade classifier ---")
+    # You might want to handle this more gracefully, e.g., by raising an exception
+    # that gets caught by a startup event handler in a real application.
+
+def detect_vehicles(frame):
+    """Detects vehicles in a single frame using the Haar Cascade model."""
+    if frame is None:
+        return 0
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Adjust scaleFactor and minNeighbors for detection sensitivity.
+    # scaleFactor: How much the image size is reduced at each image scale.
+    # minNeighbors: How many neighbors each candidate rectangle should have to retain it.
+    cars = car_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    return len(cars)
+
 @app.post('/process-video')
 async def process_video(request: Request):
     """
@@ -73,7 +93,7 @@ async def process_video(request: Request):
                         break
                     frame_count += 1
                     if frame_count % sample_interval == 0:
-                        vehicles_in_frame = np.random.randint(0, 9)
+                        vehicles_in_frame = detect_vehicles(frame)
                         vehicle_count_total += vehicles_in_frame
                 cap.release()
                 
