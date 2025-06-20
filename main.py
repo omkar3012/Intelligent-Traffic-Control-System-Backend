@@ -19,9 +19,11 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    # This regex allows all Vercel preview deployments for your project.
+    allow_origin_regex=r"https://intelligent-traffic-control-system-.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.post('/process-video')
