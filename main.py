@@ -43,7 +43,8 @@ def download_cascade_file():
                 f.write(response.content)
             print("Download complete.")
         except requests.RequestException as e:
-            print(f"--- Error downloading cascade file: {e} ---")
+            # Print the full exception to get more details in the logs
+            print(f"--- Error downloading cascade file. Details: {traceback.format_exc()} ---")
             raise RuntimeError("Could not download Haar Cascade file for vehicle detection.") from e
 
 # Download the file on startup
