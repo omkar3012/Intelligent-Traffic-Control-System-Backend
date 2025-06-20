@@ -6,6 +6,7 @@ import numpy as np
 import json
 import os
 import traceback
+import requests
 
 app = FastAPI()
 
@@ -26,18 +27,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Vehicle Detection ---
-# Load the pre-trained Haar Cascade model for car detection
-car_cascade = cv2.CascadeClassifier()
-# Construct an absolute path to the cascade file to avoid pathing issues in different environments.
-cascade_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'haarcascade_cars.xml'))
+# --- Vehicle Detection Setup ---
 
-if not os.path.exists(cascade_path):
-    print(f"--- Error: Cascade file not found at {cascade_path} ---")
-elif not car_cascade.load(cascade_path):
-    print(f"--- Error: Failed to load car cascade classifier from {cascade_path} ---")
-    # You might want to handle this more gracefully, e.g., by raising an exception
-    # that gets caught by a startup event handler in a real application.
+CASCADE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_car.xml"
+CASCADE_FILE_NAME = "haarcascade_cars.xml"
+
+def download_cascade_file():
+    """Downloads the Haar Cascade file if it doesn't already exist."""
+    if not os.path.exists(CASCADE_FILE_NAME):
+        print(f"Downloading {CASCADE_FILE_NAME} from {CASCADE_URL}...")
+        try:
+            response = requests.get(CASCADE_URL, timeout=10)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            with open(CASCADE_FILE_NAME, "wb") as f:
+                f.write(response.content)
+            print("Download complete.")
+        except requests.RequestException as e:
+            print(f"--- Error downloading cascade file: {e} ---")
+            raise RuntimeError("Could not download Haar Cascade file for vehicle detection.") from e
+
+# Download the file on startup
+download_cascade_file()
+
+# Load the pre-trained Haar Cascade model
+car_cascade = cv2.CascadeClassifier()
+if not car_cascade.load(CASCADE_FILE_NAME):
+    # This error should now be highly unlikely
+    raise RuntimeError(f"--- Fatal: Failed to load car cascade classifier from {CASCADE_FILE_NAME} ---")
 
 def detect_vehicles(frame):
     """Detects vehicles in a single frame using the Haar Cascade model."""
