@@ -44,11 +44,21 @@ VEHICLE_CLASSES = [2, 3, 5, 7]  # In COCO dataset: 2=car, 3=motorcycle, 5=bus, 7
 def detect_vehicles(frame):
     """Detects vehicles in a single frame using the YOLOv8 model."""
     if frame is None:
+        print("--- detect_vehicles received a None frame. ---")
         return 0
     
-    # Perform inference
-    results = model(frame, verbose=False)
+    # --- Detailed Logging ---
+    print(f"--- Processing frame of shape: {frame.shape}, dtype: {frame.dtype} ---")
+
+    # Perform inference with a low confidence threshold to catch all potential detections
+    results = model(frame, verbose=False, conf=0.1)
     
+    all_detected_classes = [int(box.cls) for box in results[0].boxes]
+    if all_detected_classes:
+        print(f"--- YOLO detected objects with classes: {all_detected_classes} ---")
+    else:
+        print("--- YOLO detected no objects in this frame. ---")
+
     vehicle_count = 0
     # The result object contains bounding boxes, classes, and confidences
     for box in results[0].boxes:
@@ -60,6 +70,7 @@ def detect_vehicles(frame):
             # Ignore if class ID is not a valid integer or out of bounds
             continue
             
+    print(f"--- Found {vehicle_count} vehicles in frame. ---")
     return vehicle_count
 
 @app.post('/process-video')
