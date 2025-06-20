@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Request, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import cv2
 import numpy as np
 import json
 import os
+import traceback
 
 app = FastAPI()
 
@@ -32,7 +34,7 @@ async def process_video(request: Request):
         form_data = await request.form()
         lanes_str = form_data.get("lanes")
         if not lanes_str:
-            return {"error": "No lanes data provided."}, 400
+            return JSONResponse(status_code=400, content={"error": "No lanes data provided."})
         
         lanes = json.loads(lanes_str)
         results = {}
@@ -45,50 +47,51 @@ async def process_video(request: Request):
             file_key = f"file_{lane_id}"
             video_file = form_data.get(file_key)
             
-            if not video_file:
+            if not isinstance(video_file, UploadFile):
                 continue
 
-            # Save the uploaded file temporarily
             temp_video_path = f"temp_{video_file.filename}"
-            with open(temp_video_path, "wb") as f:
-                content = await video_file.read()
-                f.write(content)
+            try:
+                with open(temp_video_path, "wb") as f:
+                    content = await video_file.read()
+                    f.write(content)
 
-            # Process the video file with OpenCV
-            cap = cv2.VideoCapture(temp_video_path)
-            if not cap.isOpened():
-                results[lane_id] = {"error": f"Could not open video file for lane {lane_id}."}
-                os.remove(temp_video_path)
-                continue
+                cap = cv2.VideoCapture(temp_video_path)
+                if not cap.isOpened():
+                    results[lane_id] = {"error": f"Could not open video file for lane {lane_id}."}
+                    continue
 
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            sample_interval = 30
-            vehicle_count_total = 0
-            frame_count = 0
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                frame_count += 1
-                if frame_count % sample_interval == 0:
-                    vehicles_in_frame = np.random.randint(0, 9)
-                    vehicle_count_total += vehicles_in_frame
-            cap.release()
-            
-            processed_frames = frame_count // sample_interval if sample_interval > 0 else 0
-            average_vehicles = vehicle_count_total / max(processed_frames, 1)
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                sample_interval = 30
+                vehicle_count_total = 0
+                frame_count = 0
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    frame_count += 1
+                    if frame_count % sample_interval == 0:
+                        vehicles_in_frame = np.random.randint(0, 9)
+                        vehicle_count_total += vehicles_in_frame
+                cap.release()
+                
+                processed_frames = frame_count // sample_interval if sample_interval > 0 else 0
+                average_vehicles = vehicle_count_total / max(processed_frames, 1)
 
-            results[lane_id] = {
-                "vehicle_count": vehicle_count_total,
-                "average_vehicles": average_vehicles,
-                "processed_frames": processed_frames,
-                "total_frames": total_frames
-            }
-            
-            # Clean up the temporary file
-            os.remove(temp_video_path)
+                results[lane_id] = {
+                    "vehicle_count": vehicle_count_total,
+                    "average_vehicles": average_vehicles,
+                    "processed_frames": processed_frames,
+                    "total_frames": total_frames
+                }
+            finally:
+                if os.path.exists(temp_video_path):
+                    os.remove(temp_video_path)
 
-        return results
+        return JSONResponse(content=results)
 
     except Exception as e:
-        return {"error": f"An error occurred: {str(e)}"}, 500 
+        return JSONResponse(
+            status_code=500,
+            content={"error": "An internal server error occurred.", "details": traceback.format_exc()}
+        ) 
