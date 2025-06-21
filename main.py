@@ -30,10 +30,14 @@ app.add_middleware(
 
 # --- Vehicle Detection Setup ---
 
-# Load the YOLOv8 model
-# 'yolov8n.pt' is a small and fast model, suitable for CPU execution.
+# Construct an absolute path to the model file to ensure it's found in any environment.
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'yolov8n.pt')
+
+# Load the YOLOv8 model from the local path.
 try:
-    model = YOLO('yolov8n.pt')
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"--- Fatal: YOLOv8 model not found at {MODEL_PATH} ---")
+    model = YOLO(MODEL_PATH)
     print("--- YOLOv8 model loaded successfully. ---")
 except Exception as e:
     raise RuntimeError(f"--- Fatal: Failed to load YOLOv8 model. Details: {e} ---")
