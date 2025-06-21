@@ -8,6 +8,12 @@ import os
 import traceback
 from ultralytics import YOLO
 import torch
+import logging
+
+# --- Logging Setup ---
+# This will ensure logs are printed in the Render environment.
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -83,34 +89,47 @@ async def process_video(request: Request):
     This endpoint accepts multipart/form-data, processes each video file,
     and returns a JSON object with vehicle detection results for each lane.
     """
+    logger.info("--- Received request for /process-video ---")
     try:
         form_data = await request.form()
+        logger.info(f"--- Form keys received: {list(form_data.keys())} ---")
+        
         lanes_str = form_data.get("lanes")
         if not lanes_str:
+            logger.error("--- 'lanes' data not found in form. ---")
             return JSONResponse(status_code=400, content={"error": "No lanes data provided."})
         
+        logger.info(f"--- 'lanes' string received: {lanes_str} ---")
         lanes = json.loads(lanes_str)
         results = {}
 
+        logger.info(f"--- Parsed {len(lanes)} lanes. Starting iteration... ---")
         for lane in lanes:
             lane_id = lane.get('id')
+            logger.info(f"--- Processing lane with ID: {lane_id} ---")
             if not lane_id:
+                logger.warning("--- Skipping a lane because it has no ID. ---")
                 continue
 
             file_key = f"file_{lane_id}"
+            logger.info(f"--- Attempting to find file with key: '{file_key}' ---")
             video_file = form_data.get(file_key)
             
             if not isinstance(video_file, UploadFile):
+                logger.warning(f"--- File not found for key '{file_key}'. Type received: {type(video_file)} ---")
                 continue
 
+            logger.info(f"--- Successfully found file '{video_file.filename}' for lane {lane_id}. ---")
             temp_video_path = f"temp_{video_file.filename}"
             try:
                 with open(temp_video_path, "wb") as f:
                     content = await video_file.read()
                     f.write(content)
-
+                
+                logger.info(f"--- Video for lane {lane_id} saved to temp file. Starting OpenCV processing. ---")
                 cap = cv2.VideoCapture(temp_video_path)
                 if not cap.isOpened():
+                    logger.error(f"--- Could not open video file for lane {lane_id}. ---")
                     results[lane_id] = {"error": f"Could not open video file for lane {lane_id}."}
                     continue
 
@@ -131,7 +150,6 @@ async def process_video(request: Request):
                 cap.release()
                 
                 processed_frames = frame_count // sample_interval if sample_interval > 0 else 0
-                # Use total detections instead of averaging for a cumulative count
                 average_vehicles = vehicle_count_total / max(processed_frames, 1)
 
                 results[lane_id] = {
@@ -140,14 +158,18 @@ async def process_video(request: Request):
                     "processed_frames": processed_frames,
                     "total_frames": total_frames
                 }
+                logger.info(f"--- Successfully processed lane {lane_id}. Vehicle count: {vehicle_count_total} ---")
             finally:
                 if os.path.exists(temp_video_path):
                     os.remove(temp_video_path)
-
+        
+        logger.info(f"--- Finished processing all lanes. Returning results: {results} ---")
         return JSONResponse(content=results)
 
     except Exception as e:
+        detailed_error = traceback.format_exc()
+        logger.error(f"--- An unhandled error occurred in /process-video: {detailed_error} ---")
         return JSONResponse(
             status_code=500,
-            content={"error": "An internal server error occurred.", "details": traceback.format_exc()}
+            content={"error": "An internal server error occurred.", "details": detailed_error}
         ) 
