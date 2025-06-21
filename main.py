@@ -115,8 +115,10 @@ async def process_video(request: Request):
             logger.info(f"--- Attempting to find file with key: '{file_key}' ---")
             video_file = form_data.get(file_key)
             
-            if not isinstance(video_file, UploadFile):
-                logger.warning(f"--- File not found for key '{file_key}'. Type received: {type(video_file)} ---")
+            # This check is more robust than `isinstance` in some deployment environments.
+            # We check for the 'filename' attribute to confirm it's a file object.
+            if not hasattr(video_file, 'filename'):
+                logger.warning(f"--- File-like object not found for key '{file_key}'. Type received: {type(video_file)} ---")
                 continue
 
             logger.info(f"--- Successfully found file '{video_file.filename}' for lane {lane_id}. ---")
