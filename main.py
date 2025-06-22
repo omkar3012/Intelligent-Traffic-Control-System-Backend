@@ -139,8 +139,10 @@ async def process_video(request: Request):
                 sample_interval = 30  # Process 1 frame per second for a 30fps video
                 vehicle_count_total = 0
                 frame_count = 0
-                
-                while cap.isOpened():
+                processed_frames_count = 0
+                max_frames_to_process = 5 # Limit processing to 5 frames to avoid timeouts
+
+                while cap.isOpened() and processed_frames_count < max_frames_to_process:
                     ret, frame = cap.read()
                     if not ret:
                         break
@@ -149,9 +151,10 @@ async def process_video(request: Request):
                     if frame_count % sample_interval == 0:
                         vehicles_in_frame = detect_vehicles(frame)
                         vehicle_count_total += vehicles_in_frame
+                        processed_frames_count += 1
                 cap.release()
                 
-                processed_frames = frame_count // sample_interval if sample_interval > 0 else 0
+                processed_frames = processed_frames_count
                 average_vehicles = vehicle_count_total / max(processed_frames, 1)
 
                 results[lane_id] = {
